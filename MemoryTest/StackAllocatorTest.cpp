@@ -1,8 +1,9 @@
 #include "CppUnitTest.h"
 #include "..\Memory\MemoryOverrides.h"
-#include "..\Memory\SingleLinkAllocator.h"
+#include "..\Memory\StackAllocator.h"
 
 #include <vector>
+#include "../Memory/SingleLinkAllocator.h"
 
 using namespace Microsoft::VisualStudio::CppUnitTestFramework;
 
@@ -18,34 +19,35 @@ namespace dae
 		float m_float{ 0 };
 	};
 
-	TEST_CLASS(SingleLinkAllocatorTest)
+	TEST_CLASS(StackAllocatorTests)
 	{
 	public:
 
 		TEST_METHOD(SingleAllocation)
 		{
-			SingleLinkAllocator allocator(allocator_size);
+			StackAllocator allocator(allocator_size);
 
 			const size_t test_size = allocator_size - pointer_size;
 			void* pointer;
 			pointer = allocator.Acquire(test_size);
 			Assert::IsNotNull(pointer);
 			std::memset(pointer, 1, test_size);
-			allocator.Release(pointer);
+			allocator.Release();
 		}
 
-		TEST_METHOD(InvalidRelease)
+		TEST_METHOD(InvalidMarker)
 		{
-			SingleLinkAllocator allocator(allocator_size);
+			StackAllocator allocator(allocator_size);
 
 			void* pointer = new char;
-			Assert::ExpectException<std::runtime_error>([&]() {allocator.Release(pointer); });
+
+			Assert::ExpectException<std::runtime_error>([&]() {allocator.SetMarker(pointer); });
 			delete pointer;
 		}
 
 		TEST_METHOD(TwoAllocations)
 		{
-			SingleLinkAllocator allocator(allocator_size);
+			StackAllocator allocator(allocator_size);
 
 			const size_t test_size = allocator_size / 2 - pointer_size;
 			void* pointer_a{};
@@ -56,13 +58,12 @@ namespace dae
 			Assert::IsNotNull(pointer_b);
 			std::memset(pointer_a, 1, test_size);
 			std::memset(pointer_b, 1, test_size);
-			allocator.Release(pointer_a);
-			allocator.Release(pointer_b);
+			allocator.Release();
 		}
 
 		TEST_METHOD(ManySmallAllocations)
 		{
-			SingleLinkAllocator allocator(allocator_size);
+			StackAllocator allocator(allocator_size);
 
 			const size_t nbPieces = allocator_size / 16;
 			void** pointers = new void* [nbPieces];
@@ -73,14 +74,15 @@ namespace dae
 				Assert::IsNotNull(pointers[i]);
 				std::memset(pointers[i], 1, test_size);
 			}
-			for (int i = 0; i < nbPieces; i++)
-				allocator.Release(pointers[i]);
+
+
+			allocator.Release();
 			delete[] pointers;
 		}
 
 		TEST_METHOD(OutOfMemory)
 		{
-			SingleLinkAllocator allocator(allocator_size);
+			StackAllocator allocator(allocator_size);
 			const size_t test_size = allocator_size - pointer_size;
 			void* pointer;
 			pointer = allocator.Acquire(test_size);
@@ -90,23 +92,7 @@ namespace dae
 			allocator.Release(pointer);
 		}
 
-		TEST_METHOD(ObjectNewAllocation)
-		{
-			SingleLinkAllocator allocator(allocator_size);
-			Object* object = nullptr;
-
-			object = new(allocator)Object;
-
-			Assert::IsNotNull(object);
-
-			Assert::AreEqual(0, object->m_integer);
-
-			Assert::AreEqual(0.0f, object->m_float);
-
-			allocator.Release(object);
-		}
-
-		TEST_METHOD(ObjectCastAllocation)
+		TEST_METHOD(ObjectAllocation)
 		{
 			SingleLinkAllocator allocator(allocator_size);
 			Object* object = nullptr;
@@ -122,30 +108,30 @@ namespace dae
 			allocator.Release(object);
 		}
 
-		TEST_METHOD(Fragmentation)
-		{
-			const size_t big_object_size = 768;
+		//No Fragmentation
+		//TEST_METHOD(Fragmentation)
+		//{
+		//	
+		//
+		//	
+		//	
+		//
+		//	
+		//
+		//	
+		//	
+		//	
+		//	
+		//
+		//	
+		//	
+		//
+		//	
+		//	
+		//	
+		//}
 
-			SingleLinkAllocator allocator(allocator_size);
-			const size_t numbers_to_allocate = 64;
-
-			Object* objects[numbers_to_allocate];
-
-			for (size_t i = 0; i < numbers_to_allocate; ++i)
-			{
-				objects[i] = reinterpret_cast<Object*>(allocator.Acquire(sizeof(Object)));
-			}
-
-			for (size_t i = 0; i < numbers_to_allocate; i += 2)
-			{
-				allocator.Release(objects[i]);
-			}
-
-			Assert::ExpectException<std::runtime_error>([&allocator, big_object_size]() {
-				allocator.Acquire(big_object_size);
-				});
 
 
-		}
 	};
 }
